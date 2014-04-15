@@ -1,0 +1,3 @@
+alias shoff='ssh -Y sb_xfer@hoffman2.idre.ucla.edu'
+alias ahoff='ssh -Y ayc@hoffman2.idre.ucla.edu'
+alias cd-HAMMER='cd /home/crusader/Dropbox/Projects/CCN-HAMMERTIME'

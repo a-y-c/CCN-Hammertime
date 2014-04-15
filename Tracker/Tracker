@@ -1,0 +1,335 @@
+#! /usr/bin/env python
+
+# FILENAME: Tracker.py 
+#********************************************************************
+# DESCRIPTION:
+#
+# Submits Queues Job to Search For Owner's File in Directory. Creates a
+#   Database to be later Queried by another Program
+#   
+#
+#
+#********************************************************************
+#
+# AUTHOR: Andrew Cho  
+# EMAIL: andrew.cho@engineering.ucla.edu
+# DATE: 2014-04-06
+#
+#********************************************************************
+#
+# Dependencies:
+#       
+#
+# Dependent By:
+#       
+#
+#*******************************************************************
+
+
+################
+# Import Cuban Cigars Here
+import os
+import sys
+import getpass
+import pickle
+
+from subprocess     import Popen
+from subprocess     import PIPE
+from argparse       import ArgumentParser 
+
+#########
+# CLASS #
+#########
+#Colors for Output
+class bcolors:
+    HEADER = '\033[95m'
+    OKBLUE = '\033[94m'
+    OKGREEN = '\033[92m'
+    WARNING = '\033[93m'
+    FAIL = '\033[91m'
+    ENDC = '\033[0m'
+
+    def disable(self):
+        self.HEADER = ''
+        self.OKBLUE = ''
+        self.OKGREEN = ''
+        self.WARNING = ''
+        self.FAIL = ''
+        self.ENDC = ''
+
+
+################
+# CNode for Dictionary Tree
+#       For Viewing (Legacy Class, shoudl replace..)
+class CNode:
+    data =  0
+    name = ""
+    index = {}
+
+    def __init__(self, value, name):
+    # initializes the data members
+        self.index = {}
+        self.data = value 
+        self.name = name
+
+
+###############
+# def Option Parser
+def parse_options():
+    # Help Message
+    HELP = """ This Program is used to Locate and Analyze Files"""
+    USEMSG= "Templator [options] "
+
+    # Initalize Parser    
+    parser = ArgumentParser(usage = USEMSG, description = HELP)
+
+    # Make Arugments Mutally Exclusive
+    group = parser.add_mutually_exclusive_group()
+
+    group.add_argument('-s', '--start', action='store_true', 
+                      dest='start', default=False,
+                      help='choosen language for template')
+
+    group.add_argument('-v', '--view', action='store_true',
+                      dest='view', default=False,
+                      help='name of the file to create')
+
+    parser.add_argument('-d', '--dir', action='store',
+                        dest='directory', default=None,
+                        help='directory location for search')
+    
+    options = parser.parse_args()
+    
+    return options 
+
+
+##############
+# def Prompt Question
+def prompt_options():
+    msg = "Do you want to [S]tart Indexing, or [V]iew Indexing? : "
+    answer = ask_question(msg).lower()
+
+    # Start Indexing
+    if answer[0] == "s":
+        msg = "Location? (Default = Current Directory) : "
+        location = ask_question(msg)
+        # Get Current Working Directory if No Location
+        if not location:
+            location = os.getcwd()
+        user = getpass.getuser()
+        start_indexer(location, "/dev/null", user)
+    # View Indexing
+    elif answer[0] == "v":
+        msg = "Location? (Default = Current Directory) : "
+        location = ask_question(msg)
+        if not location:
+            location = os.getcwd()
+        # If Missing Pickle File 
+        if not os.path.isfile(os.path.join(location, "Tracker-Pickle.p")):
+            msg = """ Missing Data! Either 
+            You need to Start Indexing, or 
+            Indexing has not finished yet! """
+            print msg
+            sys.exit(1)
+        view_indexer(os.path.join(location, "Tracker-Pickle.p"))
+    # ERRRRROR
+    else:
+        print "ERROR: NOT A VALID CHOICE!"
+        sys.exit(1)
+
+
+###############
+# def ask question
+def start_indexer(location, log, user ):
+    qsub_find(location, log, user)
+
+    msg = "Job Submitted! Please use qstat -u " + user + " to check status."
+    print msg
+
+
+###############
+# def print entire structure
+def print_all(CURRENT, tabs):
+    space = ""
+    for x in range(tabs):
+        space = space + "     "
+    print space + "|--- " + CURRENT.name + "  " + str(CURRENT.data)
+
+    # RECURSSSSSSIONNNNNN!
+    for key in CURRENT.index.keys():
+        print_all(CURRENT.index[key], tabs+1)
+
+
+###############
+# def print selected structure
+def print_select(CURRENT, tabs, path):
+
+    # If Current is Root, Skip
+    if CURRENT.name == "ROOT":
+        fold = CURRENT.index.keys()
+        print fold
+        CURRENT = CURRENT.index[fold[0]]
+        # Keep Track of Path
+        path = fold[0]
+
+    # Loop until Exit
+    success = True
+    while success:
+        # Print Path
+        print bcolors.OKGREEN + "PATH = " + path + "\n" + bcolors.ENDC
+
+        # Build Trees Structure
+        space = ""
+        for x in range(tabs):
+            space = space + "     "
+        print space + "|--- " + CURRENT.name + "  " + str(CURRENT.data)
+
+        # Keep Track Variables
+        filecount = 0
+        space1 = space + "     "
+        # Print Folders
+        for key in CURRENT.index.keys():
+            msg = space1 + "|--- " + CURRENT.index[key].name + "  " 
+            print msg + str(CURRENT.index[key].data)
+            filecount = filecount + CURRENT.index[key].data
+
+        # Print Number of Files
+        msg = "<FILES IN CURRENT DIRECTORY> "
+        print space1 + "|--- " + msg + str( CURRENT.data-filecount)
+
+        # Print Folder Options
+        print "\n" + "OPTIONS: " + str(CURRENT.index.keys())
+
+        # Prompt Folder Options
+        msg = "Type: [Directory], ListAll [#], Back [<], QUIT [!] ---"
+        answer = ask_question(msg)
+
+        # If Back(<) 
+        if answer.strip() == "<":
+            print "Back <--"
+            return
+        # If Exiting
+        elif answer.strip() == "!":
+            print "Quitting!"
+            sys.exit(0)
+        # If One of Folder Options
+        elif answer in CURRENT.index.keys():
+            print "CHOOSEN:  " + answer
+            path = os.path.join(path,answer)
+            print_select(CURRENT.index[answer], tabs+1, path)
+        # If Print All Option
+        elif answer.strip() == "#":
+            print bcolors.OKGREEN + "PRINT ALL!"  + bcolors.ENDC
+            print_all(CURRENT, tabs)
+            print "\n \n \nCurrent Directory:"
+        # None of the options Match
+        else:
+            print bcolors.FAIL + "WRONG OPTION!! \n" + bcolors.ENDC
+            
+
+
+###############
+# def ask question
+def view_indexer(location):
+    # Load Save Data File
+    CURRENT = pickle.load( open(location, "rb"))
+    #print_all(CURRENT, 0)
+    print_select(CURRENT, 0, "")
+        
+        
+###############
+# def Option Parser
+def qsub_find(path, logpath, user):
+    print "Path = " + path
+    print "LogPath = " + logpath
+    print "User = " + user
+
+    # Indexer
+    folder_path = os.path.dirname(os.path.realpath(__file__))
+    index_er = os.path.join(folder_path, "Indexer.py")
+
+    # Create Qsub Message
+    qsub = """#!/bin/bash
+#$ -V
+#$ -cwd
+#$ -j y
+#$ -N Tracker
+#$ -l h_data=8G,h_rt=23:00:00
+    
+( echo ${logpath} ; /usr/bin/find ${path} -user ${user} 2>/dev/null ) | sed -e 's|\(.*\)/.*|\1|' | python {index_er}
+
+    """.format(logpath=logfile, path=path, user=user, index_er=index_er)
+    p = Popen("qsub", stdin=PIPE)
+    p.communicate(qsub)
+        
+
+
+###############
+# def ask question
+def ask_question(msg):
+    # Add Colors!
+    msg = '\033[94m' + msg + '\033[0m'
+    # Prompt Question 
+    return raw_input(msg)
+
+
+################
+# MAIN 
+def main():
+
+    # Grab Arguments
+    options = parse_options()
+
+    # If Starting Indexer (submit Qsub Find)
+    if options.start:
+        # Set Users
+        user = getpass.getuser()
+        # Set Directory (If not Set)
+        if not options.directory:
+            msg = "Location? (Default = Current Directory) : "
+            location = ask_question(msg)
+            # Get Local Directory if not Specified
+            if not location:
+                location = os.getcwd()
+        # Take Location from Argument
+        else:
+            location = options.directory
+
+        # Start Indexer
+        start_indexer(location, "/dev/null", user)
+        
+    # If Viewing Indexer 
+    elif options.view:
+        # If Directory Location is not Set
+        if not options.directory:
+            msg = "Location? (Default = Current Directory) : "
+            location = ask_question(msg)
+            # Set Default if not Specified
+            if not location:
+                location = os.getcwd()
+        # Take Location from Argument
+        else:
+            location = options.directory
+            
+        # Check for Missing Pickle File 
+        picklepath = os.path.join(location, "Tracker-Pickle.p")
+        if not os.path.isfile(picklepath):
+            msg = """Missing Data! Either 
+You need to Start Indexing, or 
+Indexing has not finished yet! """
+            print  bcolors.WARNING + msg + bcolors.ENDC
+            sys.exit(1)
+
+        # Start Viewer
+        view_indexer(picklepath)
+
+    # Ask for Directions
+    else:
+        prompt_options()
+
+
+
+################
+# END 
+if __name__ == "__main__":
+    main()

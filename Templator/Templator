@@ -1,0 +1,392 @@
+#! /usr/bin/env python
+
+# FILENAME: TEMPLATE.py 
+# AUTHOR: Andrew Cho
+# DATE: 2012-01-01
+# DESCRIPTION: Create Template for Template
+
+#Information 
+###################################################################
+#
+#       Uses Configure File as Template.
+#
+#
+
+###########
+# IMPORTS #
+###########
+import sys
+import os
+import datetime 
+import re
+import textwrap 
+
+from argparse       import ArgumentParser 
+from ConfigParser   import ConfigParser
+
+from check_config   import return_config_location
+
+###############
+# Global Vars
+LineWrapperMax = 70
+
+###############
+# Class
+# Support Languages
+class Language:
+
+    class TwoWayDict(dict):
+        KEYS = []
+        VALUES = []
+
+        def __len__(self):
+            return dict.__len__(self) / 2
+    
+        def __setitem__(self, key, value):
+            dict.__setitem__(self, key, value)
+            dict.__setitem__(self, value, key)
+            self.KEYS.append(key)
+            self.VALUES.append(value)
+    
+        def keys(self):
+            return self.KEYS
+
+        def values(self):
+            return self.VALUES
+            
+    # Support Language in Dictionary
+    collection = TwoWayDict()
+    comments = {}
+
+    collection['python'] = '.py'
+    comments['python'] = '#'
+
+    collection['bash'] = '.sh'
+    comments['bash'] = '#'
+
+    collection['matlab'] = '.m'
+    comments['matlab']  = '%'
+
+    language = collection.keys()
+    suffix = collection.values()
+   
+    both = language + suffix 
+    # Support Comments
+
+### GLOBAL ###
+langs = Language()
+
+
+# Color Prompts
+class Bcolors:
+    HEADER = '\033[95m'
+    OKBLUE = '\033[94m'
+    OKGREEN = '\033[92m'
+    WARNING = '\033[93m'
+    FAIL = '\033[91m'
+    ENDC = '\033[0m'
+
+    def disable(self):
+        self.HEADER = ''
+        self.OKBLUE = ''
+        self.OKGREEN = ''
+        self.WARNING = ''
+        self.FAIL = ''
+        self.ENDC = ''
+
+
+# Template Translations
+class Translations:
+
+    # Translation between variables and Display Description
+    questions = {}
+    # Translation from Config File
+    presets = {}
+    # Translation that requires no Prompt 
+    noprompts = []
+    
+    
+    # Add into Preset Variable from Config File
+    def configure_input(self):
+        # Check Config Path
+        f_path = os.path.dirname(os.path.realpath(__file__))
+        ConfigPath = return_config_location('Templator_conf.cfg', f_path)
+
+        # Open up Config File
+        config = ConfigParser(allow_no_value=True)
+        config.read(ConfigPath)
+
+        # Grab Variables
+        options = config.options('presets')
+        for var in options:
+            self.presets[var] = config.get('presets', var)
+            #print(self.presets)
+
+        options = config.options('questions')
+        for var in options:
+            self.questions[var] = config.get('questions', var)
+            #print(self.questions)
+
+        self.noprompts = config.options('no prompt')
+        #print(self.noprompts)
+
+    def __init__(self):
+        self.configure_input()
+        
+
+###############
+# def Option Parser
+def parse_options():
+    # Help Message
+    HELP = """ This Program is used to make Templates """
+    USEMSG= "Templator [options] "
+
+    # Initalize Parser    
+    parser = ArgumentParser(usage = USEMSG, description = HELP)
+
+    parser.add_argument('-l', '--language', action='store', 
+                      dest='language', default=None,
+                      help='choosen language for template')
+
+    parser.add_argument('-f', '--filename', action='store',
+                      dest='filename', default=None,
+                      help='name of the file to create')
+    
+    parser.add_argument('-s', '--silent', action='store_true', 
+                      dest='silent', default=False,
+                      help='supress any prompt during creation')
+
+    options = parser.parse_args()
+    
+    return options 
+
+
+################
+## def Check Config Location
+#def check_config_location(filename):
+#    # Home Config Location
+#    home_config = '~/' + filename
+#
+#    # Current Config Location
+#    folder_path = os.path.dirname(os.path.realpath(__file__)) 
+#    folder_config = folder_path + '/' + filename
+#
+#    # Check if Config is Valid
+#    if (os.path.isfile(home_config)):
+#        ConfigPath = home_config
+#    elif (os.path.isfile(folder_config)):
+#        ConfigPath = folder_config
+#    else:
+#        # Missing Config File
+#        print 'Missing Config File!'
+#        sys.exit(1)
+#
+#    return ConfigPath
+
+
+##############
+# def Set File Name 
+def set_filename(filename, language):
+    loop = True
+    while (loop):
+
+        # If no Filename
+        while (filename == None or len(filename) == 0):
+            msg = Bcolors.HEADER + "Enter the FileName:\n" + Bcolors.ENDC
+            filename = raw_input(msg)
+
+        # Set/Check Language/Suffix 
+        filename, language = set_language(filename, language) 
+
+        # Check Success
+        if check_filename(filename):
+            loop = False    # End Loop
+        else:
+            filename = ""   # Ask Again
+            language = ""
+    
+    #print(filename)
+    return filename, language
+
+
+##############
+# def Set/Check Language Suffix
+def set_language(filename, language):
+
+    loop = True
+    while(loop):    
+
+        # Split the Name/FileExtension
+        fileshortname, fileExtension = os.path.splitext(filename)
+        
+        # Match any Supported Language
+        if fileExtension in langs.suffix:
+            # if language variable empty (AND SUCCESS!)
+            if (language == None or len(language) == 0):
+                language = langs.collection[fileExtension]
+                loop = False
+            else:
+                language = language.lower()
+                # If Extension match input Language language
+                if language == langs.collection[fileExtension]:
+                    loop = False
+                # If it doesn't, return false (ask again)
+                else:
+                    inmsg =  "\nChoosen Langauge and Extension Mismatch\n"
+                    msg = Bcolors.FAIL + inmsg + Bcolors.ENDC
+                    print(msg)
+    
+        # Did not match any Language
+        else:
+            # If there was an extension
+            if len(fileExtension) == 0:
+                inmsg = "\nUnknown/Unspported File Extension \n"
+                msg = Bcolors.WARNING + inmsg + Bcolors.ENDC
+                print(msg)
+            else:
+                inmsg ="\nFile Extension Required \n" 
+                msg = Bcolors.WARNING + inmsg + Bcolors.ENDC
+                print (msg)
+
+        # Didn't pass the Check, Ask for Language
+        if (loop == True):
+            filename, language = ask_language(filename)
+
+    # If Pass check, Return Information
+    return filename, language
+
+
+##############
+# def Ask Language 
+def ask_language(filename):
+    
+    # Ask for Language
+    msg = Bcolors.HEADER + "Enter Language:\n " +  Bcolors.ENDC
+    msg = msg + Bcolors.OKBLUE + str(langs.language) + "\n:" + Bcolors.ENDC
+
+    word = raw_input(msg).lower()
+    
+    # check if input matches suffix
+    if word in langs.suffix:
+        filename = filename.split('.')[0] + word
+        language = langs.collection[word]
+
+    # check if input is a language
+    elif word in langs.language:
+        filename = filename.split('.')[0] + langs.collection[word] 
+        language = word
+
+    # if nothing matched return original
+    else:
+        language = ""
+
+    return filename, language 
+ 
+    
+##############
+# def Check File Name
+def check_filename(filename):
+    # Check File Name Path
+    if os.path.isfile(filename):
+        msg =  Bcolors.FAIL + "\nFile Exist \n"  +  Bcolors.ENDC
+        print(msg)
+        return False
+    # File Name Passed
+    else:
+       return True 
+
+##############
+# def Prompt Replacement of Text
+def prompt_question(modifer):
+    # ask question, get results back
+    msg = Bcolors.OKBLUE + modifer + Bcolors.ENDC
+    answer = raw_input(msg)
+
+    # If Answer Greater then 70 Characters, add newline, and COMMENT
+    # COMMENT = % (Will get replace by another function)
+    array_answer = textwrap.wrap(answer, LineWrapperMax)
+    return_answer = ''
+    for word in array_answer:
+       return_answer = return_answer + word + '\n' + '%   ' 
+    return return_answer
+
+
+##############
+# def Replacement of Text through functions, Variables
+def adjust_var(modifer, filename, language):
+    if modifer == '$function_interpreter':
+        if language == 'bash':
+            return '#! /usr/bin/env bash'
+        elif language == 'python':
+            return  '#! /usr/bin/env python'
+        else:
+            return ''
+    elif modifer == '$function_name':
+        return filename
+    elif modifer ==  '$last_mdate':
+        return  str(datetime.date.today())
+
+
+##############
+# def Replacement of Text through functions, Comments
+def adjust_comments(line, language):
+    line = line.replace('%', langs.comments[language]) 
+    return line
+
+
+###############
+# def MAIN
+def main():
+    trans = Translations() 
+    #langs = Language() # -- Global Vars
+    options = parse_options()
+
+    filename = options.filename
+    language = options.language
+    silent = options.silent
+    
+    # Prompt Filename
+    # It Check and ReAsk if Failed
+    filename, language = set_filename(filename, language)
+
+    # Check Location of Template File
+    f_path = os.path.dirname(os.path.realpath(__file__))
+    template = return_config_location('Templator_template.txt', f_path)
+
+    # Set File Descriptors 
+    in_f = open(template, 'r')      # Template File
+    out_f = open(filename, 'w')     # Output File
+
+    # Loop and Replace
+    for line in in_f:
+        # Copy Line for Modification 
+        rl = line
+        for word in line.split():
+            if (word.startswith('$')):         
+                # if in Collection (Needs to Ask for Input)
+                if not silent and word in trans.questions:
+                    rword =  prompt_question(trans.questions[word])
+                    rl = rl.replace(word, rword)
+                # if in Preset (just replace)
+                if word in trans.presets:
+                    rl = rl.replace(word, trans.presets[word] )       
+                # if in noprompt (need to calculate)
+                if word in trans.noprompts:
+                    rword = adjust_var(word, filename, language)
+                    rl = rl.replace(word, rword )
+
+        out_f.write(adjust_comments(rl, language))
+        #print(replace)
+        
+    in_f.close()
+    out_f.close()
+
+    msg = Bcolors.OKGREEN + "File Created" + Bcolors.ENDC
+    print(msg)
+
+
+##############
+# MAIN
+if __name__ == "__main__":
+    main()
+

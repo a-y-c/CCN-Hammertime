@@ -1,0 +1,300 @@
+#! /usr/bin/env python
+
+# FILENAME: Aliaser.py 
+#********************************************************************
+# DESCRIPTION:
+#
+# Tool to Automate Adding Alias by creating a file (bash_aliaser) and
+#   executing in bash_profile
+#   
+#
+#
+#********************************************************************
+#
+# AUTHOR: Andrew Cho  
+# EMAIL: andrew.cho@engineering.ucla.edu
+# DATE: 2014-04-04
+#
+#********************************************************************
+#
+# Dependencies:
+#       template-Aliaser
+#   
+#
+# Dependent By:
+#       
+#
+#*******************************************************************
+
+
+
+################
+# Import Japanese Cars Here
+import os
+import sys
+import re
+
+from argparse import ArgumentParser
+   
+from check_config import return_config_location
+
+
+###############
+# def Option Parser
+def parse_options():
+
+    # Help Message
+    HELPMSG = """ This Program keeps Aliases Simple """
+    USEMSG = "Aliaser [options]"
+
+    # Initalize Parser    
+    parser = ArgumentParser(usage = USEMSG, description = HELPMSG)
+    
+    # Make Arugments Mutally Exclusive
+    group = parser.add_mutually_exclusive_group()
+
+
+    parser.add_argument('-n', '--name', action='store', 
+                      dest='name', default=None,
+                      help='name for the command/action')
+
+    parser.add_argument('-c', '--command', action='store',
+                      dest='command', default=None,
+                      help='command to preform')
+    
+    group.add_argument('-a', '--add', action='store_true',
+                      dest='add_a', default=False,
+                      help='list all alias')
+    
+    group.add_argument('-l', '--list', action='store_true',
+                      dest='list_a', default=False,
+                      help='list all alias')
+
+    group.add_argument('-d', '--delete', action='store_true',
+                      dest='delete_a', default=False,
+                      help='delete an alias')
+
+    parser.add_argument('-s', '--silent', action='store_true', 
+                      dest='silent', default=False,
+                      help='supress any prompt during creation')
+
+    options = parser.parse_args()
+    
+    return options 
+
+
+################
+## def Check Config Location
+#def check_config_location(filename):
+#    # Home Config Location
+#    home_config = '~/' + filename
+#
+#    # Current Config Location
+#    folder_path = os.path.dirname(os.path.realpath(__file__)) 
+#    folder_config = folder_path + '/' + filename
+#
+#    # Check if Config is Valid
+#    if (os.path.isfile(home_config)):
+#        ConfigPath = home_config
+#    elif (os.path.isfile(folder_config)):
+#        ConfigPath = folder_config
+#    else:
+#        # Missing Config File
+#        print '\033[91m'+' Missing Config File!'+'\033[0m'
+#        sys.exit(1)
+#
+#    return ConfigPath
+
+
+###############
+# def list all aliases
+def list_aliases(name, command, config_file):
+
+    # Print
+    print '\033[94m'+"\nListing all Aliases: "+'\033[0m'
+
+    try:
+        # open the file to read
+        fid = open(config_file, "r")
+        
+        # print line by line
+        for line in fid:
+            # Variable for Tracking to print a line or not
+            do_print = False
+
+            # Partition the Line for Matching
+            name_l, equal, command_l = line.partition('=')
+
+            # If looking for Name of Aliases
+            if name and name in name_l: 
+                do_print = True
+            # Or If Looking for Command
+            if command and command in command_l:
+                do_print = True
+            # Print Everything!
+            if not name and not command:
+                do_print = True
+
+            if do_print:
+                print line.rstrip()
+        
+    except IOError:
+        print "Error: can\'t find file or read data"
+
+###############
+# def delete aliases
+def delete_aliases(name, command, config_file):
+    # If Missing Name
+    if not name and not command:    
+        msg = "What is the Alias Name? : "
+        action = ask_question(msg) + "="
+
+    try:
+        # Store Input Information
+        with open(config_file, "r") as infile:
+            lines = infile.readlines()
+
+        # Open Output File
+        with open(config_file, "wt") as outfile:
+            # Loop Through File
+            for line in lines:
+                # Not Empty Line and Not Contain Search
+                if line.rstrip():
+                    if action not in line:
+                        outfile.write(line) 
+                    else:
+                        print '\033[92m'+"Deleted: "+line.rstrip()+'\033[0m'
+
+    except IOError:
+        print "Error: can\'t find file or read data"
+
+
+
+
+
+###############
+# def add aliases
+def add_aliases(name, command, config_file):
+    if not name:
+        msg = "What is the Alias' Name? : "
+        name = ask_question(msg)
+
+    # Check if Command not already an executable
+    if which(name):
+        print '\033[91m'+name+' ALREADY EXISTS AS A COMMAND!'+'\033[0m'
+        sys.exit(1)
+
+    if not command:
+        msg = "What kind of command do you want it to preform? : "
+        command = ask_question(msg)
+    
+    print "Adding Command: " 
+    
+    action_l = "alias " + name.replace(" ","") + "=\'" + command + "\'"
+    print action_l
+    
+
+    try:
+        # Open Input File
+        with open(config_file, "r") as infile:
+            lines = infile.readlines()
+
+        # Open Output File
+        with open(config_file, "wt") as outfile:
+            for line in lines:
+                # Remove Empty Lines
+                if line.rstrip():
+                    outfile.write(line)
+                if name+"=" in line:
+                    msg = "ERROR: Collision - DUPLICATE COMMAND DETECTED!"
+                    print '\033[91m'+msg+'\033[0m'
+                    print line
+                    sys.exit(1)
+            # Add the Alias
+            outfile.write("\n" + action_l)
+
+    except IOError:
+        print "Error: can\'t find file or read data"
+
+
+###############
+# def ask for instructions 
+def prompt_options(config_file):
+    msg = "Do you want to [A]dd [D]elete or [L]ist aliases? : "
+    answer = ask_question(msg).lower()
+
+    if not answer:                  # If NO Answer
+        print "ERROR: NOT A VALID CHOICE!"
+    elif answer[0] == "a":          # If Adding Aliases
+        add_aliases("","", config_file)
+    elif answer[0] == "d":          # If Deleting Aliases
+        delete_aliases("","", config_file)
+    elif answer[0] == "l":          # If Listing Aliases
+        list_aliases("","", config_file)
+    else:                           # If None of the Above
+        print "ERROR: NOT A VALID CHOICE!"
+    return
+
+
+###############
+# def add aliases
+def ask_question(msg):
+    # Add Colors!
+    msg = '\033[94m' + msg + '\033[0m'
+    # Prompt Question 
+    return raw_input(msg)
+
+
+###############
+# def check if not an executable (which unix)
+def which(name):
+    #Stolen from the Internetz
+    def is_exe(fpath):
+        return os.path.isfile(fpath) and os.access(fpath, os.X_OK)
+
+    fpath, fname = os.path.split(name)
+    if fpath:
+        if is_exe(name):
+            return name
+    else:
+        for path in os.environ["PATH"].split(os.pathsep):
+            path = path.strip('"')
+            exe_file = os.path.join(path, name)
+            if is_exe(exe_file):
+                return exe_file
+
+    return None
+
+
+################
+# MAIN 
+def main():
+
+    # Get Arguments
+    options = parse_options()
+    command = options.command
+    name = options.name
+
+    # Check Configuation File
+    f_path = os.path.dirname(os.path.realpath(__file__)) 
+    config_file = return_config_location('Aliaser_Config', f_path)
+
+
+    # If list option is on
+    if options.list_a:
+        list_aliases(name, command, config_file)
+    # Or Add Option
+    elif options.add_a:
+        add_aliases(name, command, config_file)
+    # Or Delete Option
+    elif options.delete_a:
+        delete_aliases(name, command, config_file)
+    # Or No Option?
+    else:
+        prompt_options(config_file)
+
+
+################
+# END 
+if __name__ == "__main__":
+    main()
