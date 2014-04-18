@@ -30,21 +30,23 @@
 mkdir -p ~/.CCN-Config
 
 # Varibles
-cpath="~/.CCN-Config/Templator_conf.cfg"
-tpath="~/.CCN-Config/Templator_template.txt"
 cmsg="Adding Templator Config File"
-pmsg="Adding Templator Template File"
+cpath="$HOME/.CCN-Config/Templator_Conf.cfg"
+tmsg="Adding Templator Template File"
+tpath="$HOME/.CCN-Config/Templator_Template.txt"
+
+script_folder=`dirname ${BASH_SOURCE[0]}`
 
 # Add Config File is Missing
-if [ ! -e $cpth ]; then
+if [ ! -e $cpath ]; then
     echo $cmsg
-    cp Templator_conf.cfg $cpth
+    cp $script_folder/Templator_Conf.cfg $cpath
 fi
 
 # Add Template File is Missing
-if [ ! -e $tpth ]; then
+if [ ! -e $tpath ]; then
     echo $tmsg
-    cp Templator_template.txt $cpth
+    cp $script_folder/Templator_Template.txt $tpath
 fi
 
 ################

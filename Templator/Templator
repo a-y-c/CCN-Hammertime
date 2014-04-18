@@ -110,7 +110,7 @@ class Translations:
     def configure_input(self):
         # Check Config Path
         f_path = os.path.dirname(os.path.realpath(__file__))
-        ConfigPath = return_config_location('Templator_conf.cfg', f_path)
+        ConfigPath = return_config_location('Templator_Conf.cfg', f_path)
 
         # Open up Config File
         config = ConfigParser(allow_no_value=True)
@@ -351,7 +351,7 @@ def main():
 
     # Check Location of Template File
     f_path = os.path.dirname(os.path.realpath(__file__))
-    template = return_config_location('Templator_template.txt', f_path)
+    template = return_config_location('Templator_Template.txt', f_path)
 
     # Set File Descriptors 
     in_f = open(template, 'r')      # Template File

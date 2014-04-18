@@ -20,7 +20,7 @@
 #       
 #
 # Dependent By:
-#       
+#      Aliaser_Config has to be in the same folder 
 #
 #*******************************************************************
 
@@ -29,14 +29,36 @@
 # SETUP 
 mkdir -p ~/.CCN-Config
 
-apath="~/.CCN-Config/Aliaser_Config"
+apath="$HOME/.CCN-Config/Aliaser_Config"
 msg="Adding Aliaser Config File"
 
+script_folder=`dirname ${BASH_SOURCE[0]}`
+
 # Add Config File is Missing
-if [ ! -e $apth ]; then
+if [ ! -e $apath ]; then
     echo $msg
-    cp Aliaser_Config $apth
+    cp $script_folder/Aliaser_Config $apath
 fi
+
+if [  -e $apath ]; then
+    # Varibles for Path
+    msg="# Adding Alias Path to ./bash_profile"
+    epath=". $apath"
+    
+    # Check if Path already in Bash_Profile
+    if ! grep -q $apath  ~/.bash_profile; then
+    
+        # Add Path to Bash Profile
+        echo $msg
+        echo $msg >> ~/.bash_profile
+        echo $epath
+        echo $epath >> ~/.bash_profile
+    
+        # End Message
+        echo "Please re-log in to see changes"
+    fi
+fi
+
 
 
 ################

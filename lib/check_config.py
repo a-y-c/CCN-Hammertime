@@ -40,19 +40,23 @@ def return_config_location(filename, realpath):
     cwd_config = os.path.join(cwd_path, filename)
 
     # Home Config Location
-    home_config = os.path.join('~/.CCN-Config', filename)
+    home_path = os.getenv("HOME")
+    home_config = os.path.join(home_path,'.CCN-Config', filename)
 
     # Current Config Location
     folder_config = os.path.join(realpath, filename)
 
     # Check if Config is Valid
     if (os.path.isfile(cwd_config)):
+        print 'Config = CWD'
         # If Config is in Current Workgin Directory
         ConfigPath = cwd_config
     elif (os.path.isfile(home_config)):
+        print 'Config = Home'
         # If Config is in Home Config Directory
         ConfigPath = home_config
     elif (os.path.isfile(folder_config)):
+        print 'Config = Executable'
         # If Standard Config is in Executable Directory
         ConfigPath = folder_config
     else:
